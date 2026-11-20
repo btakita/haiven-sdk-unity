@@ -1,0 +1,13 @@
+{
+  "name": "Haiven.EditMode",
+  "references": [
+    "Haiven.Sdk",
+    "Haiven.Sdk.Core"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compiles the WebGL transport that nothing else can.
+
+    WebGlSocket.cs is guarded by `#if UNITY_WEBGL && !UNITY_EDITOR` and depends
+    on `AOT.MonoPInvokeCallback`, which ships with Unity. So it is excluded from
+    the Haiven.Sdk build by its own guard and could not be built there anyway —
+    which left it as the only file in this repository that nothing compiled.
+
+    That is worth fixing even though it cannot be RUN here. A missing using, a
+    wrong delegate arity, a `Marshal` member absent from netstandard2.1: each is
+    a compile error, and finding it in a Unity project is finding it in the one
+    place with the slowest feedback loop in this stack.
+
+    It also compiles the package the way Unity does since the core ships in it
+    as source (scripts/vendor-unity.py): every .cs under Runtime/ and Editor/,
+    the vendored Runtime/Core included, with nullable annotations DISABLED at
+    the project level as Unity's compiler has them. A vendored file that lost its
+    `#nullable enable` then fails here on CS8632 instead of flooding a game's
+    console with warnings. Tests/ is left out: it needs Unity's NUnit and test
+    runner, and the engine harness compiles it.
+
+    The stub attribute below stands in for Unity's. It is a marker with no
+    behaviour — IL2CPP reads it, the compiler only checks that it applies — so
+    standing in for it changes nothing this build is checking.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefineConstants>$(DefineConstants);UNITY_WEBGL</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Stubs.cs" />
+    <!-- The dependency-free package surface. The System.Text.Json adapter has
+         its own opt-in asmdef and is compiled by its .NET project. -->
+    <Compile Include="../com.haiven.sdk/Runtime/**/*.cs"
+             Exclude="../com.haiven.sdk/Runtime/SystemTextJson/**/*.cs;../com.haiven.sdk/Runtime/WebRtc/**/*.cs" />
+    <Compile Include="../com.haiven.sdk/Editor/**/*.cs" />
+  </ItemGroup>
+
+</Project>
