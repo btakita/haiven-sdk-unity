@@ -150,8 +150,10 @@ its platform's secure credential store (do not put the bearer in `PlayerPrefs`)
 and calls `coordinator.Resume()` before `BeginLogin()`: a saved credential is
 reused without opening the browser and raises `Completed`. A durable credential
 has a null `ExpiresAt`. The handoff has no
-client secret and returns no refresh token. On metadata expiry, REST `401`, or
-WebSocket `auth.expired`, call `RestartLogin`; it clears before opening a fresh
+client secret and returns no refresh token. On metadata expiry, REST `401`,
+WebSocket `auth.expired`, a `1008 credential_revoked` close
+(`CredentialRevoked`), or a handshake refused with `1008 unauthorized`
+(`CredentialRefused`), call `RestartLogin`; it clears before opening a fresh
 handoff and never uses the web refresh route.
 
 ### Desktop loopback redirect

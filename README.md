@@ -160,6 +160,80 @@ For a standalone .NET project that supports .NET Standard 2.1, download
 `Haiven.Sdk.Core.dll`. Add the DLL as an assembly reference. Its checksum is
 in `SHA256SUMS.binaries`. Use the UPM package above for Unity projects.
 
+## Quickstart
+
+Add the package as shown under
+[Add the package to your own project](#add-the-package-to-your-own-project),
+then add this component to a GameObject in your scene and press Play. The URLs
+are production's. Ask the Haiven app owner for your public integration id and a
+channel id, and register the redirect URI on the integration exactly, port
+included. Use the IP literal `127.0.0.1`, not `localhost`.
+
+```csharp
+using System;
+using Haiven.Sdk;
+using Haiven.Sdk.Rest;
+using UnityEngine;
+
+public sealed class HaivenQuickstart : MonoBehaviour
+{
+    private async void Start()
+    {
+        // Sign in: open Haiven's sign-in page, then receive the redirect on loopback.
+        var redirectUri = new Uri("http://127.0.0.1:47615/haiven/callback");
+        var login = new HandoffCoordinator(
+            new HandoffOptions(
+                new Uri("https://haiven.gg/connect/game"),
+                new Uri("https://haiven.gg/v0/auth/handoff/exchange"),
+                "your-public-integration-id",
+                redirectUri),
+            new UnityHandoffBrowser(),
+            new MemoryHandoffTransactionStore(),
+            new MemoryHandoffTokenStore(), // development only: forgets the credential on exit
+            new UnityHandoffHttpTransport(),
+            new UnityHandoffDispatcher()); // construct on the main thread
+        var credential = login.Resume(); // null when nothing valid is saved
+        if (credential == null)
+        {
+            using (var listener = LoopbackHandoffListener.Start(redirectUri))
+                credential = await login.LoginAsync(listener);
+        }
+
+        // One REST call.
+        var rest = new RestApi(new UnityRestApiTransport(
+            new Uri("https://haiven.gg/v0"),
+            () => credential.AccessToken));
+        var tags = await rest.GetAppsTagsAsync();
+        Debug.Log($"{tags?.Count ?? 0} public tags");
+
+        // One realtime message: queued until the session has authenticated.
+        var chat = new HaivenChat();
+        chat.OutgoingChanged += message => Debug.Log($"Chat send: {message.State}");
+        var socket = new UnitySocket(); // main thread only; not supported in WebGL players yet
+        var session = new HaivenSessionCore(socket, () => credential.AccessToken);
+        chat.Attach(session);
+        session.Authenticated += () => Debug.Log("Haiven realtime ready");
+        await socket.ConnectAsync(new Uri("wss://haiven.gg/v0/ws"));
+        session.Opened(); // sends the auth frame
+        chat.Send("your-channel-id", "gg");
+    }
+}
+```
+
+- The loopback redirect works in the Editor and in desktop players. On mobile
+  or WebGL, receive a custom-scheme or HTTPS callback with
+  `HandoffDeepLinkReceiver` and call `BeginLogin` instead.
+- `MemoryHandoffTokenStore` forgets the credential when the player exits.
+  Never store the token in `PlayerPrefs`; pass your own
+  `IHandoffCredentialStore` backed by the platform's secure storage.
+- `Authenticated` is the ready signal; an open socket is not. Sends made before
+  it are queued, not lost.
+- There is no refresh token. After a REST `401` or a WebSocket `auth.expired`,
+  call `RestartLogin` and sign in again.
+
+The [Unity guide](https://docs.haiven.gg/engines/unity) covers deep links,
+saving the credential, reconnecting, and recovering an expired token.
+
 ## Releases
 
 Releases are published on this repository's
@@ -219,6 +293,7 @@ license, as [CONTRIBUTING.md](CONTRIBUTING.md) says.
 | REST | ○ |
 | Game login handoff | ○ |
 | P2P sessions | ~ |
+| Credential lifecycle | ~ |
 | API surface | ~ |
 | Product | ~ |
 | Developer experience | ~ |
